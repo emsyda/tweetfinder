@@ -1,0 +1,10 @@
+node_modules/
+.venv/
+.vectorbase/
+.test/
+data/
+
+*.local
+
+__pycache__/
+.pytest_cache/

@@ -1,0 +1,63 @@
+version: '3'
+services:
+  frontend:
+    build: ./frontend
+    image: tweetfinder-frontend
+    container_name: tweetfinder-frontend
+    ports:
+      - "80:80"
+    networks:
+      - custom
+    
+    # *1 had to use /bin/sh as /bin/bash is not available in the image
+    # *2 for some reason the environment variables weren't passed to the Dockerfile's CMD command (despite being available at runtime)
+    #     instead let it be directly replaced in the docker-compose.yaml and then the command sent
+    # *3 let envsubst replace only $BACKEND_URI variables, as it contains other $ variables too (e.g. $uri) (and would replace them with empty spaces)
+    # - (can't do directly `envsubst default.conf > default.conf` because `envsubst` reads and writes simultaneously)
+    #command: /bin/sh -c 'export BACKEND_URI_LOCAL=${BACKEND_URI_LOCAL} && export BACKEND_URI_GLOBAL=${BACKEND_URI_GLOBAL} && envsubst \$$BACKEND_URI_LOCAL:\$$BACKEND_URI_GLOBAL < /etc/nginx/conf.d/template.conf > /etc/nginx/conf.d/default.conf && rm /etc/nginx/conf.d/template.conf && nginx -g "daemon off;"'
+    command: /bin/sh -c '/app/setup.sh ${BACKEND_URI_LOCAL} ${BACKEND_URI_GLOBAL} && nginx -g "daemon off;"'
+  backend:
+    build: ./backend
+    image: tweetfinder-backend  # name of the image to be created
+    container_name: tweetfinder-backend
+    ports:
+      - "5000:5000"
+    volumes:
+      - tweetfinder:/app/data
+    # these can only be referenced if in the same docker-compose.yml file
+    #depends_on:
+    #  - mongodb  # start the service after `mongodb` is up
+    #external_links:
+      # <existing_container_name>:alias
+    #  - mongo:mongodb  # refer to the service as `mongodb` (alias) in this service
+    networks:
+      - custom
+    #args:  # build time args (ARG X; ENV Y=$X)
+    #  MONGO_URI: mongodb://mongo:27017
+    environment:  # runtime args (overrides build-time args)
+      - CONSUMER_KEY=${CONSUMER_KEY}
+      - CONSUMER_SECRET=${CONSUMER_SECRET}
+      - FLASK_SECRET_KEY=${FLASK_SECRET_KEY}
+      - ADMIN_ACCOUNTS=${ADMIN_ACCOUNTS}
+      #- BACKEND_URI_LOCAL=${BACKEND_URI_LOCAL}
+      #- BACKEND_URI_GLOBAL=${BACKEND_URI_GLOBAL}
+      - MONGO_URI=${MONGO_URI}
+
+#  mongodb:
+#    image: mongo
+#    restart: unless-stopped  # no|always|on-failure|unless-stopped
+#    ports:
+#      - "27017:27017"
+#    networks:
+#      - custom
+
+volumes:
+  tweetfinder:
+    external: true  # not managed by docker-compose (but created by `docker volume create`)
+    name: tweetfinder
+
+# mongo and backend must be in the same network
+networks:
+  custom:  # "bridge" is the network that mongo is automatically added to (if started from docker client UI)
+    #driver: overlay
+    external: true

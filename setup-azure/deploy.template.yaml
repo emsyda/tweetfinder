@@ -1,0 +1,84 @@
+# Ref: https://learn.microsoft.com/en-us/azure/container-instances/container-instances-reference-yaml
+apiVersion: '2021-10-01'
+location: ${DEPLOY_LOCATION}
+name: tweetfinder
+properties:
+  containers:
+  - name: tweetfinder-frontend
+    properties:
+      image: ${ACR_REGISTRY_ID}/tweetfinder-frontend:latest
+      # for some reason it doesn't like passing multiple commands as a single string
+      # OK      ["/bin/sh", "-c", "echo started >&2 && tail -f /dev/null"]
+      # FAILS   ["/bin/sh", "-c", "'echo started >&2 && tail -f /dev/null'"]
+      command: ["/bin/sh", "-c", "/app/setup.sh ${BACKEND_URI_LOCAL} ${BACKEND_URI_GLOBAL} && nginx -g \"daemon off;\""]
+      #command: ["/bin/sh", "-c", "/app/setup.sh ${BACKEND_URI_LOCAL} ${BACKEND_URI_GLOBAL} && tail -f /dev/null"]
+      #command: ["/bin/sh", "-c", "echo started >&2 && tail -f /dev/null"]
+      resources:
+        requests:
+          cpu: 1.0
+          memoryInGB: 1.0
+      ports:
+      - port: 80
+  - name: tweetfinder-backend
+    properties:
+      image: ${ACR_REGISTRY_ID}/tweetfinder-backend:latest
+      resources:
+        requests:
+          cpu: 1.0
+          memoryInGB: 4.0
+      ports:
+      - port: 5000
+      environmentVariables:
+      - name: CONSUMER_KEY
+        value: ${CONSUMER_KEY}
+      - name: CONSUMER_SECRET
+        value: ${CONSUMER_SECRET}
+      - name: FLASK_SECRET_KEY
+        value: ${FLASK_SECRET_KEY}
+      - name: ADMIN_ACCOUNTS
+        value: ${ADMIN_ACCOUNTS}
+      #- name: BACKEND_URI_LOCAL
+      #  value: ${BACKEND_URI_LOCAL}
+      #- name: BACKEND_URI_GLOBAL
+      #  value: ${BACKEND_URI_GLOBAL}
+      - name: MONGO_URI
+        value: ${MONGO_URI} # Mongo Cosmos DB URI
+      volumeMounts:
+      - name: tweetfinder
+        mountPath: /app/data
+  # will use Mongo CosmosDB instead
+  #- name: mongo
+  #  properties:
+  #    image: mongo:latest
+  #    resources:
+  #      requests:
+  #        cpu: 1.0
+  #        memoryInGB: 1.0
+  volumes:
+  - name: tweetfinder
+    azureFile:
+      sharename: ${ACI_PERS_SHARE_NAME}
+      storageAccountName: ${ACI_PERS_STORAGE_ACCOUNT_NAME}
+      storageAccountKey: ${STORAGE_KEY}
+  imageRegistryCredentials: # Credentials to pull a private image
+  - server: ${ACR_REGISTRY_ID}
+    username: ${ACR_USERNAME}
+    password: ${ACR_PASSWORD}
+    #identity: string
+    #identityUrl: string
+  ipAddress:
+    type: Public
+    ports:
+    - protocol: tcp
+      port: 80
+    - protocol: tcp
+      port: 5000
+    dnsNameLabel: tweetfinder
+    #dnsNameLabelReusePolicy: string
+  #dnsConfig: # DNS configuration for container group
+  #  nameServers:
+  #  - string
+  #  searchDomains: string
+  #  options: string
+  osType: Linux
+  restartPolicy: Always

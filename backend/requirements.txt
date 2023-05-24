@@ -1,0 +1,14 @@
+tweepy
+pymongo
+langchain
+#llama-index
+openai
+chromadb
+tiktoken
+Flask
+oauthlib < 3    # required by Flask-OAuthlib (tweepy wants oauthlib>3.2)
+Flask-OAuthlib
+
+pytest
+python-dotenv
+dateparser
